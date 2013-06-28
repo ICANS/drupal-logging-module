@@ -1,0 +1,26 @@
+{
+    "name": "icans/logging",
+    "description": "tradimo.com",
+    "type": "drupal-module",
+    "authors": [
+        {
+            "name": "ICANS GmbH",
+            "homepage": "http://www.icans-gmbh.com"
+        }
+    ],
+    "homepage": "http://www.tradimo.com",
+    "require": {
+        "php": ">=5.3.3",
+
+        "composer/installers": "~1.0",
+        "ebuzzing/thrift":                      "dev-master#4accfc3966df535611e75d3a6a47cc46dafa251d",
+        "icans/logging-component":              "@dev",
+        "videlalvaro/php-amqplib"  :            "dev-master"
+    },
+    "autoload": {
+        "psr-0": {
+            "Icans\\Logging": "src/",
+            "Icans\\Event": "src/"
+        }
+    }
+}

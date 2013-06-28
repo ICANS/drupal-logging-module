@@ -1,0 +1,162 @@
+<?php
+/**
+ * Startpoint for logging.module
+ *
+ * @author    Oliver Peymann
+ * @author     Mike Lohmann
+ * @copyright (C) 2013 ICANS GmbH
+ */
+use Icans\Logging\Mapper\WatchdogSeverityMapper;
+
+use Monolog\Logger;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+
+function logging_inject_build(ContainerBuilder $container) {
+    $container->setParameter('icans_logging.rabbitmq.routing_key', variable_get('icans_logging.rabbitmq.routing_key', 'default_routing_key'));
+    $container->setParameter('icans_logging.logger.log_level', variable_get('icans_logging.logger.log_level', 1));
+    $container->setParameter('icans_logging.logger.bubbles', variable_get('icans_logging.logger.bubbles', True));
+
+    // set the parameters for the amqp connection
+    $container->setParameter('amqpconnection.host', variable_get('amqpconnection.host', '127.0.0.1'));
+    $container->setParameter('amqpconnection.port', variable_get('amqpconnection.port', '5672'));
+    $container->setParameter('amqpconnection.user', variable_get('amqpconnection.user', 'guest'));
+    $container->setParameter('amqpconnection.password', variable_get('amqpconnection.password', 'guest'));
+
+    $container->setParameter('rabbitmq_producer_riak_vhost', variable_get('rabbitmq_producer_riak_vhost', '/'));
+}
+
+/**
+ * Implements hook_boot().
+ */
+function logging_boot()
+{
+    $loader = drupal_classloader();
+
+    // This file is created by composer when installing the dependencies of the logging-component with it.
+    // To use it with the allready installed classloader the namespace is registered.
+    $map = require_once DRUPAL_ROOT . '/../vendor/composer/autoload_namespaces.php';
+    $loader->addPrefixes($map);
+}
+
+/**
+ *
+ *
+ * @param $path
+ * @param $arg
+ *
+ * @return null|string
+ */
+function logging_help($path, $arg)
+{
+    if ($path === "admin/help#logging") {
+        return t("Logging module");
+    }
+}
+
+/**
+ * Implements hook watchdog for logging
+ *
+ * @param array $logEntry
+ */
+function logging_watchdog(array $logEntry)
+{
+    /* @var $dic ContainerInterface */
+    $dic = drupal_container();
+    if (true == $dic->has('icans.logging.mapper.severity_mapper')) {
+        /* @var  $severityMapper WatchdogSeverityMapper */
+        $severityMapper = $dic->get('icans.logging.mapper.severity_mapper');
+        $mappedSeverity = $severityMapper->getMappedSeverity($logEntry['severity']);
+    }
+
+    // uncomment the below code to see how the logger works. It should be fully functional.
+    // Just configure rabbitmq accordingly (define a queue and bind it (don't forget the routing key, if used))
+    if (true == $dic->has('icans.logger')) {
+        /* @var $logger Logger */
+        $logger = $dic->get('icans.logger');
+        $logger->log('INFO', 'Sending a log message!');
+    }
+
+}
+
+/**
+ * Implements hook_menu.
+ */
+function logging_menu() {
+    $items = array();
+
+    $items['admin/config/system/logging'] = array(
+        'title' => 'Logging',
+        'description' => 'Configuration for the logging module',
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('logging_form'),
+        'access arguments' => array('access administration pages'),
+        'type' => MENU_NORMAL_ITEM,
+    );
+
+    return $items;
+}
+
+/**
+ * Page callback Hot topics settings
+ *
+ * @see logging_menu
+ */
+function logging_form($form, &$form_state) {
+    $form['logging_config_loglevel'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Log Level'),
+        '#default_value' => variable_get('logging_config_loglevel', 3),
+        '#size' => 2,
+        '#maxlength' => 2,
+        '#description' => t('Log Level config'),
+        '#required' => TRUE,
+    );
+
+    $form['logging_config_rabbitmq_routing_key'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Log Level Rabbit MQ routing key'),
+        '#default_value' => variable_get('logging_config_rabbitmq_routing_key', 'default_key'),
+        '#size' => 128,
+        '#maxlength' => 128,
+        '#description' => t('Rabbit MQ routing key'),
+        '#required' => TRUE,
+    );
+
+    $form['logging_config_bubble'] = array(
+        '#type' => 'select',
+        '#options' => array(
+            0 => t('True'),
+            1 => t('False'),
+        ),
+        '#title' => t('Log Level bubble'),
+        '#default_value' => variable_get('logging_config_bubble', 'False'),
+        '#description' => t('Log bubble'),
+        '#required' => TRUE,
+    );
+
+    return system_settings_form($form);
+}
+
+/**
+ * Implements validation from  the Forms API
+ *
+ * @param $form array
+ * @param $form_state array
+ */
+function logging_form_validate($form, &$form_state) {
+    $log_level = $form_state['values']['logging_config_loglevel'];
+    if(!is_numeric($log_level)) {
+        form_set_error('logging_config_loglevel', t('Please enter a number!'));
+    } elseif($log_level <= 0) {
+        form_set_error('logging_config_loglevel', t('The number has to be positive!'));
+    }
+
+    $routing_key = $form_state['values']['logging_config_rabbitmq_routing_key'];
+    if(!is_string($routing_key)) {
+        form_set_error('logging_config_rabbitmq_routing_key', t('routing key should be a string!'));
+    }
+}
+
+// include the user specific log hooks
+include_once __DIR__ . '/src/LogAction/User.php';

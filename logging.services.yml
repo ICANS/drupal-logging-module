@@ -1,0 +1,49 @@
+parameters:
+  icans.logging.rabbit_mq.handler.class: ICANS\Component\IcansLoggingComponent\Handler\RabbitMqHandler
+  icans.logging.rabbit_mq.message_producer.class: Icans\Logging\Producer\RabbitMqMessageProducer
+  icans.logging.mapper.watchdog_severity_mapper.class: Icans\Logging\Mapper\WatchdogSeverityMapper
+  icans.logging.postprocessor.rabbit_mq.class: Icans\Logging\AnalyticsProcessor
+  icans.logging.messagefactory.class: ICANS\Component\IcansLoggingComponent\Transport\MessageFactory
+  icans.logging.pulseidgenerator.class: ICANS\Component\IcansLoggingComponent\Transport\PulseIdGenerator
+  icans.logger.class: Monolog\Logger
+  phpamqplib.amqpconnection.class: PhpAmqpLib\Connection\AMQPConnection
+
+services:
+  icans.logging.service.rabbit_mq:
+    class:      "%icans.logging.rabbit_mq.handler.class%"
+    arguments:  ["%icans_logging.rabbitmq.routing_key%","%icans_logging.logger.log_level%","%icans_logging.logger.bubbles%"]
+    calls:
+          - [ setEventMessageProducer, ["@icans.logging.rabbit_mq.message_producer"] ]
+          - [ addAdditionalProperties, [{delivery_mode: 1, application_headers: {x-riak-target-vnode: {0:S, 1:%rabbitmq_producer_riak_vhost%}}}]]
+          - [ pushProcessor, ["@icans.logging.postprocessor.rabbit_mq"] ]
+
+  icans.logging.rabbit_mq.message_producer:
+      class:      "%icans.logging.rabbit_mq.message_producer.class%"
+      arguments:  ["@icans_logging.amqp_connection"]
+      calls:
+                - [ setExchangeOptions, [{name: icanslog-datalogistics, type: direct, durable: true, arguments:{x-ha-policy:{0:S,1:all}}}]]
+
+  icans.logging.mapper.severity_mapper:
+        class:      "%icans.logging.mapper.watchdog_severity_mapper.class%"
+
+  icans.logger:
+        class:      "%icans.logger.class%"
+        arguments:  ["logger.name"]
+        calls:
+                  - [ pushHandler, ["@icans.logging.service.rabbit_mq"] ]
+
+  icans_logging.amqp_connection:
+        class:      "%phpamqplib.amqpconnection.class%"
+        arguments:  ["%amqpconnection.host%","%amqpconnection.port%","%amqpconnection.user%","%amqpconnection.password%"]
+
+  icans.logging.postprocessor.rabbit_mq:
+        class:      "%icans.logging.postprocessor.rabbit_mq.class%"
+        arguments:  ["@icans.logging.messagefactory"]
+
+  icans.logging.messagefactory:
+          class:      "%icans.logging.messagefactory.class%"
+          arguments:  ["@icans.logging.pulseidgenerator"]
+
+  icans.logging.pulseidgenerator:
+            class:      "%icans.logging.pulseidgenerator.class%"
+            arguments:  [""]

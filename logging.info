@@ -1,0 +1,9 @@
+name = "Logging"
+description = Allows using the logging bundle / component within Drupal
+core = 7.x
+package = ICANS
+files[] = logging.module
+configure = admin/config/logging/logging
+php = 5.3
+dependencies[] = inject
+dependencies[] = classloader

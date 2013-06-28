@@ -1,4 +1,4 @@
-drupal-logging-module
+icans-drupal-logging-module
 =====================
 
 logging module for drupal using ICANS/LoggingComponent
